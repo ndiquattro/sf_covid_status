@@ -2,21 +2,27 @@
 title: "SF COVID-19 Status"
 author: "Nick DiQuattro"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
-output: html_document
+output:
+  html_document:
+    toc: true
+    # toc_float: true
+    theme: readable
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, fig.width = 16, message = FALSE, out.width = "100%")
+knitr::opts_chunk$set(echo = FALSE, fig.width = 16, message = FALSE,
+                      out.width = "100%", fig.height = 8)
 
 library(tidyverse)
 library(patchwork)
 library(lubridate)
 library(slider)
 
-theme_set(theme_linedraw(16))
+theme_set(theme_linedraw(20))
 ```
 
 # Daily Growth
+Data Source: [data.sfgov.org](https://data.sfgov.org/COVID-19/COVID-19-Cases-Summarized-by-Date-Transmission-and/tvq9-ec9w)
 ```{r growth_chart}
 sf_daily_count <-
   read_csv("https://data.sfgov.org/resource/tvq9-ec9w.csv") %>%
@@ -34,13 +40,14 @@ sf_daily_count %>%
     geom_line(aes(y = cmean)) +
     scale_x_date(date_breaks = "1 week", date_labels = "%B %d") +
     scale_y_continuous(breaks = seq(0, 1000, 5)) +
-    scale_fill_discrete(labels = c("Higher", "Lower")) +
+    scale_fill_brewer(labels = c("Higher", "Lower", "First"), type = "qual", palette = 4, na.translate = FALSE) +
     labs(x = "Day", y = "New Cases", color = "Events", fill = "Vs. Previous Day",
-         caption = "Trend line indicates 7 day rolling mean")
+         caption = "Trend line indicates 7 day rolling mean") +
+    theme(legend.position = "top")
 ```
 
-# Positive Test Percentage
-
+# Testing
+Data Source: [data.sfgov.org](https://data.sfgov.org/COVID-19/COVID-19-Tests/nfpa-mg4g)
 ```{r testing}
 sf_tests <-
   read_csv("https://data.sfgov.org/resource/nfpa-mg4g.csv") %>% 
@@ -55,7 +62,8 @@ sf_tests %>%
     geom_line(aes(y = cmean)) +
     scale_y_continuous(breaks = seq(0, 1, .04), labels = scales::label_percent())  +
     scale_x_date(date_breaks = "1 week", date_labels = "%B %d") +
-    labs(x = "Day", y = "% Testing Positive", caption = "Integers indicate number of tests conducted. Trend line indicates 7 day rolling mean.")
+    labs(x = "Day", y = "% Testing Positive", caption = "Integers indicate number of tests conducted. Trend line indicates 7 day rolling mean.",
+         title = "Positivity Rate")
 
 sf_tests %>% 
   arrange(result_date) %>% 
@@ -65,12 +73,12 @@ sf_tests %>%
     geom_line(aes(y = cmean)) +
     scale_y_continuous(breaks = seq(0, 1000, 50), labels = scales::label_comma())  +
     scale_x_date(date_breaks = "1 week", date_labels = "%B %d") +
-    labs(x = "Day", y = "# of Tests Conducted", caption = "Trend line indicates 7 day rolling mean.")
+    labs(x = "Day", y = "# of Tests Conducted", caption = "Trend line indicates 7 day rolling mean.", title = "Daily Count of Tests")
 ```
 
 # Hospital Occupancy
-
-```{r hospitalization}
+Data Source: [data.sfgov.org](https://data.sfgov.org/COVID-19/COVID-19-Hospitalizations/nxjg-bhem)
+```{r hospitalization, fig.height=8}
 sf_hospit <-
   read_csv("https://data.sfgov.org/resource/nxjg-bhem.csv") %>% 
   mutate(
