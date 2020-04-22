@@ -1,0 +1,91 @@
+---
+title: "SF COVID-19 Status"
+author: "Nick DiQuattro"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.width = 16, message = FALSE, out.width = "100%")
+
+library(tidyverse)
+library(patchwork)
+library(lubridate)
+library(slider)
+
+theme_set(theme_linedraw(16))
+```
+
+# Daily Growth
+```{r growth_chart}
+sf_daily_count <-
+  read_csv("https://data.sfgov.org/resource/tvq9-ec9w.csv") %>%
+  mutate(date = as_date(date)) %>% 
+  group_by(case_disposition, date) %>% 
+  summarise(case_count = sum(case_count)) %>% 
+  arrange(date) %>% 
+  mutate(c_count = cumsum(case_count))
+
+sf_daily_count %>% 
+  filter(case_disposition == "Confirmed") %>%
+  mutate(cmean = slide_dbl(case_count, mean, .before = 7)) %>%
+  ggplot(aes(date, case_count)) +
+    geom_col(aes(fill = case_count - lag(case_count) <= 0)) +
+    geom_line(aes(y = cmean)) +
+    scale_x_date(date_breaks = "1 week", date_labels = "%B %d") +
+    scale_y_continuous(breaks = seq(0, 1000, 5)) +
+    scale_fill_discrete(labels = c("Higher", "Lower")) +
+    labs(x = "Day", y = "New Cases", color = "Events", fill = "Vs. Previous Day",
+         caption = "Trend line indicates 7 day rolling mean")
+```
+
+# Positive Test Percentage
+
+```{r testing}
+sf_tests <-
+  read_csv("https://data.sfgov.org/resource/nfpa-mg4g.csv") %>% 
+  mutate(result_date = as_date(result_date))
+
+sf_tests %>% 
+  arrange(result_date) %>% 
+  filter(result_date > "2020-03-15") %>% 
+  mutate(cmean = slide_dbl(pct, mean, .before = 7)) %>%
+  ggplot(aes(result_date, pct)) +
+    geom_col(alpha = .6) +
+    geom_line(aes(y = cmean)) +
+    scale_y_continuous(breaks = seq(0, 1, .04), labels = scales::label_percent())  +
+    scale_x_date(date_breaks = "1 week", date_labels = "%B %d") +
+    labs(x = "Day", y = "% Testing Positive", caption = "Integers indicate number of tests conducted. Trend line indicates 7 day rolling mean.")
+
+sf_tests %>% 
+  arrange(result_date) %>% 
+  mutate(cmean = slide_dbl(tests, mean, .before = 7)) %>%
+  ggplot(aes(result_date, tests)) +
+    geom_col(alpha = .6) +
+    geom_line(aes(y = cmean)) +
+    scale_y_continuous(breaks = seq(0, 1000, 50), labels = scales::label_comma())  +
+    scale_x_date(date_breaks = "1 week", date_labels = "%B %d") +
+    labs(x = "Day", y = "# of Tests Conducted", caption = "Trend line indicates 7 day rolling mean.")
+```
+
+# Hospital Occupancy
+
+```{r hospitalization}
+sf_hospit <-
+  read_csv("https://data.sfgov.org/resource/nxjg-bhem.csv") %>% 
+  mutate(
+    reportdate = as_date(reportdate),
+    covidstatus = if_else(covidstatus == "PUI", "Suspected", covidstatus)
+  )
+
+sf_hospit %>% 
+  ggplot(aes(reportdate, patientcount, color = dphcategory)) +
+    geom_line() +
+    geom_point() +
+    scale_y_continuous(breaks = seq(0, 1000, 10), labels = scales::label_comma())  +
+    scale_x_date(date_breaks = "1 week", date_labels = "%B %d") +
+    facet_wrap(~covidstatus) +
+    labs(x = "Day", y = "# of Patients", color = "Bed Type") +
+    theme(legend.position = "bottom")
+```
+
