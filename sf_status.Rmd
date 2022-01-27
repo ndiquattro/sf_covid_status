@@ -21,46 +21,38 @@ library(lubridate)
 library(slider)
 
 theme_set(theme_linedraw(20))
-```
 
-# Daily Growth
-Data Source: [data.sfgov.org](https://data.sfgov.org/COVID-19/COVID-19-Cases-Summarized-by-Date-Transmission-and/tvq9-ec9w)
-
-## The Whole Mess
-
-```{r growth_chart}
+sf_pop <- 873965
 sf_daily_count <- read_csv("https://data.sfgov.org/resource/gyr2-k29z.csv")
 
-sf_daily_count %>% 
-  mutate(cmean = slide_dbl(new_cases, mean, .before = 7)) %>%
-  ggplot(aes(specimen_collection_date, new_cases)) +
-    geom_col() +
-    geom_line(aes(y = cmean)) +
-    scale_x_datetime(date_labels = "%B %Y") +
-    labs(x = "Day", y = "New Cases", color = "Events", fill = "Vs. Previous Day",
-         caption = "Trend line indicates 7 day rolling mean") +
-    theme(legend.position = "top")
+daily_stats <-
+  sf_daily_count %>% 
+  arrange(specimen_collection_date) %>% 
+  mutate(
+    per100k = (new_cases / sf_pop) * 1e5,
+    cum100k = slide_dbl(per100k, mean, .before = 7),
+    cmean   = slide_dbl(new_cases, mean, .before = 7)
+  )
+
+sf_tests <-
+  read_csv("https://data.sfgov.org/resource/nfpa-mg4g.csv") %>% 
+  arrange(specimen_collection_date)
 ```
 
-## Recent Mess
-```{r recent}
-sf_daily_count %>% 
-  filter(specimen_collection_date > (now() - weeks(4))) %>% 
-  mutate(cmean = slide_dbl(new_cases, mean, .before = 7)) %>%
-  ggplot(aes(specimen_collection_date, new_cases)) +
-    geom_col(alpha = .7) +
-    geom_line(aes(y = cmean), color = "blue") +
-    scale_x_datetime(date_breaks = "2 day", date_labels = "%D") +
-    labs(x = "Day", y = "New Cases", color = "Events", fill = "Vs. Previous Day",
-         caption = "Trend line indicates 7 day rolling mean", title = "Last 4 Weeks") +
-    theme(legend.position = "top", axis.text.x = element_text(angle = 90))
-```
+# Wachter Lines
+Thresholds Source: <https://twitter.com/Bob_Wachter/status/1484729208471392256?s=20>
 
-
-# Testing
-Data Source: [data.sfgov.org](https://data.sfgov.org/COVID-19/COVID-19-Tests/nfpa-mg4g)
-```{r testing}
-sf_tests <- read_csv("https://data.sfgov.org/resource/nfpa-mg4g.csv")
+```{r wachter}
+daily_stats %>% 
+  filter(specimen_collection_date > (now() - weeks(8))) %>% 
+  ggplot(aes(specimen_collection_date, per100k)) +
+    geom_point() +
+    geom_line() +
+    geom_hline(yintercept = 10, color = "#2ca25f") +
+    scale_x_datetime(date_labels = "%D", date_breaks = "1 week") +
+    annotate("label", x = now() - weeks(3), y = 10, label = "Wachter Line",
+             color = "#2ca25f") +
+    labs(x = "Day", y = "Cases per 100K", title = "Last 8 Weeks")
 
 sf_tests %>% 
   filter(specimen_collection_date > (now() - months(3))) %>% 
@@ -70,16 +62,41 @@ sf_tests %>%
     geom_line(aes(y = cmean), color = "blue") +
     scale_y_continuous(labels = scales::label_percent())  +
     scale_x_datetime(date_breaks = "2 week", date_labels = "%B %d") +
+    geom_hline(yintercept = .01, color = "#2ca25f") +
+    annotate("label", x = now() - weeks(3), y = .01, label = "Wachter Line",
+             color = "#2ca25f")+
     labs(x = "Day", y = "% Testing Positive", caption = " Trend line indicates 7 day rolling mean.",
          title = "Positivity Rate")
+```
 
-sf_tests %>% 
-  filter(specimen_collection_date > (now() - months(3))) %>% 
-  mutate(cmean = slide_dbl(tests, mean, .before = 7)) %>%
-  ggplot(aes(specimen_collection_date, tests)) +
-    geom_col(alpha = .6) +
+
+# Daily Growth
+Data Source: [data.sfgov.org](https://data.sfgov.org/COVID-19/COVID-19-Cases-Summarized-by-Date-Transmission-and/tvq9-ec9w)
+
+## The Whole Mess
+
+```{r growth_chart}
+daily_stats %>%
+  ggplot(aes(specimen_collection_date, new_cases)) +
+    geom_col() +
     geom_line(aes(y = cmean)) +
-    scale_y_continuous(labels = scales::label_comma())  +
-    scale_x_datetime(date_breaks = "2 week", date_labels = "%B %d") +
-    labs(x = "Day", y = "# of Tests Conducted", caption = "Trend line indicates 7 day rolling mean.", title = "Daily Count of Tests")
+    scale_x_datetime(date_labels = "%B %Y") +
+    scale_y_continuous(labels = scales::label_comma()) +
+    labs(x = "Day", y = "New Cases", color = "Events", fill = "Vs. Previous Day",
+         caption = "Trend line indicates 7 day rolling mean") +
+    theme(legend.position = "top")
+```
+
+## Recent Mess
+```{r recent}
+daily_stats %>% 
+  filter(specimen_collection_date > (now() - weeks(4))) %>% 
+  ggplot(aes(specimen_collection_date, new_cases)) +
+    geom_col(alpha = .7) +
+    geom_line(aes(y = cmean), color = "blue") +
+    scale_x_datetime(date_breaks = "2 day", date_labels = "%D") +
+    scale_y_continuous(labels = scales::label_comma()) +
+    labs(x = "Day", y = "New Cases", color = "Events", fill = "Vs. Previous Day",
+         caption = "Trend line indicates 7 day rolling mean", title = "Last 4 Weeks") +
+    theme(legend.position = "top", axis.text.x = element_text(angle = 90))
 ```
